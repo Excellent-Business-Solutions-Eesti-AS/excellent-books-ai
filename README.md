@@ -66,6 +66,7 @@ Excellenti konsultant.
 ## About this repository
 
 This repository holds the released package as it ships; it is published from Excellent's internal
-repository, so please do not send pull requests. Questions: your Excellent consultant or
+repository, so pull requests are not accepted. Licence: free to install and use with Excellent
+business software, no modified redistribution, no warranty; see [LICENSE](LICENSE). Questions: your Excellent consultant or
 excellentinfo@excellent.ee. Excellent Books is a product of Excellent Business Solutions Eesti AS,
 https://www.excellent.ee/.
