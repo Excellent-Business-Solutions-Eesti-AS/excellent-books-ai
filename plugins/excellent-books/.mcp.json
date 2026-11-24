@@ -1,0 +1,20 @@
+{
+  "mcpServers": {
+    "excellent-books": {
+      "command": "./launcher/start",
+      "args": [],
+      "cwd": ".",
+      "env": {
+        "EBMCP_MODE": "plugin"
+      },
+      "env_vars": [
+        "CODEX_MCP_NODE_PATH",
+        "CODEX_BROWSER_USE_NODE_PATH",
+        "CODEX_ELECTRON_RESOURCES_PATH",
+        "CODEX_CLI_PATH",
+        "XDG_CACHE_HOME"
+      ],
+      "startup_timeout_sec": 300
+    }
+  }
+}

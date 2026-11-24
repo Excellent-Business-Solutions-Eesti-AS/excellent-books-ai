@@ -1,0 +1,36 @@
+{
+  "name": "excellent-books",
+  "version": "1.0.0",
+  "description": "Read and analyse your Excellent Books data in Codex. To save changes, review and approve them.",
+  "author": {
+    "name": "Excellent Business Solutions"
+  },
+  "homepage": "https://www.excellent.ee",
+  "license": "Proprietary",
+  "keywords": [
+    "excellent",
+    "excellent-books",
+    "erp",
+    "accounting"
+  ],
+  "mcpServers": "./.mcp.json",
+  "interface": {
+    "displayName": "Excellent Books",
+    "shortDescription": "Ask your Excellent Books in your own words",
+    "longDescription": "Ask about your own Excellent Books data in plain words: what customers owe, unpaid supplier invoices, stock, ledgers and reports. The connector runs on your computer and signs in to Books with your own login. Nothing is saved in Books unless you switch writing on and approve each change.",
+    "developerName": "Excellent Business Solutions",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "How much do our customers owe us right now?",
+      "Which purchase invoices are unpaid?",
+      "What is our stock worth?"
+    ],
+    "websiteURL": "https://www.excellent.ee",
+    "brandColor": "#1F4E79"
+  }
+}

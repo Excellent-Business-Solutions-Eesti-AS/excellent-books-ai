@@ -1,0 +1,20 @@
+{
+  "name": "excellent",
+  "interface": {
+    "displayName": "Excellent"
+  },
+  "plugins": [
+    {
+      "name": "excellent-books",
+      "source": {
+        "source": "local",
+        "path": "./plugins/excellent-books"
+      },
+      "policy": {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL"
+      },
+      "category": "Productivity"
+    }
+  ]
+}

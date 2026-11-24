@@ -1,0 +1,76 @@
+#!/bin/sh
+# Excellent Books plugin launcher for macOS and Linux: finds a Node runtime and runs start.mjs.
+# The probe order of OpenAI's own Codex plugins: the runtimes Codex ships first, the PATH last.
+# A candidate counts only when its path is absolute and it is an executable regular file.
+set -eu
+
+PATH="${PATH:-/usr/bin:/bin}:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+export PATH
+
+# The launcher's own folder, with shell built-ins only (no external program is needed).
+case "$0" in
+  */*) launcher_dir=${0%/*} ;;
+  *) launcher_dir=. ;;
+esac
+launcher_dir=$(CDPATH= cd -- "$launcher_dir" && pwd)
+launcher=$launcher_dir/start.mjs
+
+# Only the launcher's own check flag is forwarded.
+flag=
+if [ "${1:-}" = "--install-only" ]; then
+  flag=--install-only
+fi
+
+# Candidates from roots that are set; an unset root gives no candidate (never /cua_node/...).
+electron_node=
+if [ -n "${CODEX_ELECTRON_RESOURCES_PATH:-}" ]; then
+  electron_node=$CODEX_ELECTRON_RESOURCES_PATH/cua_node/bin/node
+fi
+cli_node=
+case "${CODEX_CLI_PATH:-}" in
+  /*/*) cli_node=${CODEX_CLI_PATH%/*}/cua_node/bin/node ;;
+esac
+cache_node=
+if [ -n "${XDG_CACHE_HOME:-}" ]; then
+  cache_node=$XDG_CACHE_HOME/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node
+elif [ -n "${HOME:-}" ]; then
+  cache_node=$HOME/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/bin/node
+fi
+
+# Leave the plugin folder: Codex replaces it on an update.
+cd /
+
+run_node() {
+  if [ -n "$flag" ]; then
+    exec "$1" "$launcher" "$flag"
+  fi
+  exec "$1" "$launcher"
+}
+
+for candidate in \
+  "${CODEX_MCP_NODE_PATH:-}" \
+  "${CODEX_BROWSER_USE_NODE_PATH:-}" \
+  "$electron_node" \
+  "$cli_node" \
+  "$cache_node"
+do
+  case "$candidate" in
+    /*) ;;
+    *) continue ;;
+  esac
+  if [ -f "$candidate" ] && [ -x "$candidate" ]; then
+    run_node "$candidate"
+  fi
+done
+
+path_node=$(command -v node 2>/dev/null || true)
+case "$path_node" in
+  /*)
+    if [ -f "$path_node" ] && [ -x "$path_node" ]; then
+      run_node "$path_node"
+    fi
+    ;;
+esac
+
+printf '%s\n' 'Excellent Books could not find a Node runtime. Reinstall or update Codex, or set CODEX_MCP_NODE_PATH to an executable Node runtime.' >&2
+exit 127
