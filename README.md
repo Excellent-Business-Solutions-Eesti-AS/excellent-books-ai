@@ -26,8 +26,9 @@ and type `continue`.
 
 Download `excellent-books-claude-desktop.mcpb` from the
 [latest release](https://github.com/Excellent-Business-Solutions-Eesti-AS/excellent-books-ai/releases/latest)
-or the start page. Open Claude Desktop and double-click the file, press **Install**, then fill in the
-server address, company number, your Books user and password in the extension's settings.
+or the start page. In Claude Desktop open **Settings → Desktop app → Extensions** and drag the file into
+that window, press **Install**, then **Configure** and fill in the server address, company number, your
+Books user and password.
 
 ## What you need
 
