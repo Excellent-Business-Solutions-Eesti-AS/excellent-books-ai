@@ -57,9 +57,10 @@ import json
 import re
 import unicodedata
 import urllib.parse
+from decimal import Decimal
 from typing import Optional
 
-from . import approval, audit, control, dates, erp, privacy, register_fields, write_outcome
+from . import approval, audit, control, dates, erp, privacy, register_fields, report_html, write_outcome
 from .config import session_connection_id
 
 MAX_ROWS = 200
@@ -409,7 +410,10 @@ def _value(value) -> str:
     if isinstance(value, bool):
         return "1" if value else "0"
     if isinstance(value, (int, float, str)):
-        return str(value).strip()
+        text = str(value).strip()
+        if isinstance(value, float) and "e" in text:
+            return format(Decimal(text), "f")
+        return text
     raise ChangeError("Field values must be text or numbers.")
 
 
@@ -1183,19 +1187,23 @@ def _form(header: dict, lines: list, approving=DEFAULT_APPROVAL_FIELDS,
     return urllib.parse.urlencode(pairs, quote_via=urllib.parse.quote).encode("ascii")
 
 
-_LEADING_ZERO = re.compile(r"^-?0\d")
+_PLAIN_DECIMAL = re.compile(r"[+-]?(?:[0-9]+(?:\.[0-9]*)?|\.[0-9]+)")
+
+
+def _plain_number(text: str) -> bool:
+    if not _PLAIN_DECIMAL.fullmatch(text) or report_html.has_leading_zero(text):
+        return False
+    whole, _, fraction = text.lstrip("+-").partition(".")
+    digits = (whole + fraction.rstrip("0")).lstrip("0")
+    return len(digits) <= 15
 
 
 def _same(wanted: str, stored) -> bool:
     stored = "" if stored is None else str(stored)
     if wanted == stored:
         return True
-    if _LEADING_ZERO.match(wanted) or _LEADING_ZERO.match(stored):
-        return False                  # "001" is a code, not the number 1
-    try:
-        return float(wanted) == float(stored)
-    except ValueError:
-        return False
+    return (_plain_number(wanted) and _plain_number(stored)
+            and float(wanted) == float(stored))
 
 
 UNVERIFIED = ("Excellent Books did not confirm this write, and that does not prove it failed: "

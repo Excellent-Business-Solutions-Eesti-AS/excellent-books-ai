@@ -117,6 +117,9 @@ class _Server(ThreadingHTTPServer):
     # and take the page over (review S3). Windows gets exclusive use of the address instead.
     allow_reuse_address = False
     allow_reuse_port = False
+    # socketserver's backlog of 5 is too small for a browser's parallel requests: macOS refuses
+    # or resets connections past it, where Windows and Linux wait (Kaia's review of PR #4).
+    request_queue_size = 64
 
     def server_bind(self):
         if sys.platform == "win32":

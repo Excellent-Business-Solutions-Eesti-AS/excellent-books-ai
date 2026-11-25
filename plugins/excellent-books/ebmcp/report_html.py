@@ -43,6 +43,7 @@ SECTION_SEP = " › "
 
 _DATE_LIKE = re.compile(r"^\d{1,2}[./-]\d{1,2}[./-]\d{2,4}$")
 _HAS_DIGIT = re.compile(r"\d")
+_LEADING_ZERO = re.compile(r"^-?0\d")
 # an amount ends in a decimal separator plus one or two digits; an id never does
 _DECIMAL_TAIL = re.compile(r"[.,]\d{1,2}$")
 
@@ -179,6 +180,10 @@ def to_amount(text) -> Optional[float]:
     if not _DECIMAL_TAIL.search(s):
         return None
     return to_number(text)
+
+
+def has_leading_zero(text: str) -> bool:
+    return _LEADING_ZERO.match(text) is not None
 
 
 def to_number(text) -> Optional[float]:

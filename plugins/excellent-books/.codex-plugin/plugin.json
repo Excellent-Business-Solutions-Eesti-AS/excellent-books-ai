@@ -1,6 +1,6 @@
 {
   "name": "excellent-books",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Read and analyse your Excellent Books data in Codex. To save changes, review and approve them.",
   "author": {
     "name": "Excellent Business Solutions"
@@ -13,6 +13,7 @@
     "erp",
     "accounting"
   ],
+  "skills": "./skills",
   "mcpServers": "./.mcp.json",
   "interface": {
     "displayName": "Excellent Books",

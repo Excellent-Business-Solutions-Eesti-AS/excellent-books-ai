@@ -185,7 +185,11 @@ def _proven_single_company(session) -> bool:
     origin = getattr(getattr(session, "cfg", None), "origin", None)
     if not origin:
         return False
-    return urlsplit(origin).netloc.lower() in hosted.log_servers(os.environ)
+    parts = urlsplit(origin)
+    netloc = parts.netloc.lower()
+    if parts.scheme == "https":
+        netloc = hosted._default_port(netloc)     # "host:443" is "host", both sides
+    return netloc in hosted.log_servers(os.environ)
 
 
 def _crash_name(doc: dict) -> str:
@@ -645,10 +649,21 @@ def _grouped(records: list, column: str, sums: list) -> list:
             for key in order]
 
 
+def _code_equality(cell, condition) -> Optional[bool]:
+    """Keep integer codes with leading zeros distinct during equality checks."""
+    from .report_html import has_leading_zero
+
+    got = str(cell).strip() if cell is not None else ""
+    wanted = str(condition).strip()
+    if got and any(has_leading_zero(value) and value.lstrip("-").isdecimal()
+                   for value in (got, wanted)):
+        return got == wanted
+    return None
+
+
 def _matches(cell, condition) -> bool:
-    """One `where` clause. A model types an account code as text while the cell parsed as a
-    number, so equality compares numerically whenever both sides are numbers. A list is ANY of
-    its conditions: one call for "error or fail or exception", not three (S8)."""
+    """One `where` clause. Equality preserves code spellings and can match numeric cells
+    against textual numbers. A list matches any of its conditions."""
     if isinstance(condition, (list, tuple)):
         return any(_matches(cell, one) for one in condition)
     text = str(condition).strip()
@@ -662,14 +677,18 @@ def _matches(cell, condition) -> bool:
 
     for operator_text in _COMPARISONS:
         if text.startswith(operator_text):
-            iso = _iso_pair(cell, text[len(operator_text):].strip())
+            raw = text[len(operator_text):].strip()
+            iso = _iso_pair(cell, raw)
             if iso:
                 got, wanted = iso
                 return {">=": got >= wanted, "<=": got <= wanted, "!=": got != wanted,
                         ">": got > wanted, "<": got < wanted, "=": got == wanted}[operator_text]
-            raw = text[len(operator_text):].strip()
             if operator_text == "=" and raw == "":
                 return cell is None or not str(cell).strip()
+            if operator_text in ("=", "!=") and not _ISO.match(raw):
+                same = _code_equality(cell, raw)
+                if same is not None:
+                    return same if operator_text == "=" else not same
             wanted = _as_number(raw)
             got = _as_number(cell)
             # "=" and "!=" with a TEXT condition compare the text: before 2026-10-04 they compared
@@ -700,6 +719,9 @@ def _matches(cell, condition) -> bool:
     iso = _iso_pair(cell, text)
     if iso:
         return iso[0] == iso[1]
+    same = _code_equality(cell, condition)
+    if same is not None:
+        return same
     wanted, got = _as_number(text), _as_number(cell)
     if wanted is not None and got is not None:
         return wanted == got
@@ -1201,7 +1223,8 @@ def _join(session, records: list, spec: dict, columns: list) -> tuple:
     syntax the REST API supports — no ranges, no LIKE, no OR — and getting it wrong returns
     every record, which makes the join silently do nothing.
     """
-    from .erp import list_values
+    from .erp import ErpError, list_records, reply_problems
+    from .write_outcome import has_data_root
 
     column, register = spec.get("column"), spec.get("register")
     field, value = spec.get("field"), spec.get("value")
@@ -1212,7 +1235,15 @@ def _join(session, records: list, spec: dict, columns: list) -> tuple:
     response = session.rest_get("/%s" % register,
                                 **{"filter.%s" % field: value, "fields": "Code",
                                    "limit": _JOIN_LIMIT})
-    codes = {_code_text(c) for c in list_values(response.body, register, "Code")}
+    if response.status != 200:
+        raise ErpError("HTTP %s" % response.status)
+    joined = list_records(response.body, register)
+    if not joined:
+        if reply_problems(response.body, structured=True):
+            raise ErpError("Excellent Books returned an error.")
+        if not has_data_root(response.body):
+            raise ErpError("Excellent Books did not return a data document.")
+    codes = {_code_text(row["Code"]) for row in joined if row.get("Code")}
 
     if not codes:
         return [], ("no %s record has %s = %s, so there was nothing to match. That is a "

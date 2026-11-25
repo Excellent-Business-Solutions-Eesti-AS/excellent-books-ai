@@ -30,6 +30,7 @@ import re
 from typing import Optional
 
 from . import control, privacy
+from .erp import reply_problems
 from .erp import unescape as _unescape
 
 MAX_DOCUMENTS = 3
@@ -168,17 +169,28 @@ def show(session, register: str, numbers: list, max_lines: int = MAX_LINES,
         addresses.append((wanted, plain))
 
     found, missing, ambiguous = [], [], {}
+    notes = []
     for wanted, plain in addresses:
         matches = _fetch(session, register, key, plain, wanted, date)
         if isinstance(matches, dict):          # the ERP refused; say that, not "not found"
             return matches
         if sub_key and wanted:
             matches = [d for d in matches if d["header"].get(sub_key) == wanted]
+        if sub_key or ":" not in plain:
+            expected = _number_key(plain)
+            exact = [d for d in matches if _number_key(d["header"].get(key, "")) == expected]
+            if len(exact) != len(matches):
+                notes.append("For %s, left out %d returned document(s) with a different %s."
+                             % (plain, len(matches) - len(exact), key))
+            matches = exact
         if not matches:
             missing.append(plain)
         elif sub_key and len(matches) > 1:
             ambiguous[plain] = [d["header"].get(sub_key, "") for d in matches]
         else:
+            if len(matches) > 1:
+                notes.append("%s matched %d documents. Only the first is shown."
+                             % (plain, len(matches)))
             found.append(matches[0])
 
     if ambiguous:
@@ -192,22 +204,35 @@ def show(session, register: str, numbers: list, max_lines: int = MAX_LINES,
                         % (register, ", ".join(sorted(ambiguous))))}
 
     if not found:
-        return {"error": "not_found",
-                "why": "no %s document numbered %s" % (register, ", ".join(missing))}
+        result = {"error": "not_found",
+                  "why": "no %s document numbered %s" % (register, ", ".join(missing))}
+    else:
+        for doc in found:
+            doc["line_count"] = len(doc["rows"])
+            doc["rows"] = doc["rows"][:max(0, max_lines)]
 
-    for doc in found:
-        doc["line_count"] = len(doc["rows"])
-        doc["rows"] = doc["rows"][:max(0, max_lines)]
-
-    result = {"register": register,
-              "documents": [_summary(register, key, d) for d in found],
-              "html": render(register, found)}
-    if missing:
-        result["not_found"] = missing
+        result = {"register": register,
+                  "documents": [_summary(register, key, d) for d in found],
+                  "html": render(register, found)}
+        if missing:
+            result["not_found"] = missing
+    if notes:
+        result["notes"] = notes
     return result
 
 
 _BAD = object()
+
+
+def _number_key(number: str) -> str:
+    """Canonical spelling for integer document numbers, including zero-padded input."""
+    text = number.strip().casefold()
+    match = re.fullmatch(r"([+-]?)([0-9]+)(?:\.0+)?", text)
+    if not match:
+        return text
+    sign, digits = match.groups()
+    digits = digits.lstrip("0") or "0"
+    return "-" + digits if sign == "-" and digits != "0" else digits
 
 
 def _address(number: str) -> tuple:
@@ -275,6 +300,9 @@ def _fetch(session, register: str, key: str, number: str, sub: Optional[str] = N
                 row["line"] = (int(number.group(1)) if number else place) + 1
                 rows.append(row)
         docs.append({"header": header, "rows": rows})
+    if not docs and reply_problems(body, structured=True):
+        return {"error": "erp_refused", "status": status,
+                "why": "Excellent Books returned an error reading %s." % register}
     return docs
 
 

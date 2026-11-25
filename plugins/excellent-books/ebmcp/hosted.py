@@ -210,10 +210,17 @@ def _entries(value: str) -> frozenset[str]:
     return frozenset(entry.strip() for entry in value.split(",") if entry.strip())
 
 
+def _default_port(host_port: str) -> str:
+    """"host" and "host:443" are one https destination (Kaia's review of PR #4): both become
+    "host", the origin a browser writes."""
+    return host_port[:-len(":443")] if host_port.endswith(":443") else host_port
+
+
 def log_servers(env) -> frozenset[str]:
     """Books servers proven to hold ONE company, whose own log the hosted connector may read
     (`EBMCP_HOSTED_LOG_SERVERS`, exact host:port, empty by default). The proof is written and part
-    of the hosted security gate (Task 48); a malformed list proves nothing (Task 44)."""
+    of the hosted security gate (Task 48); a malformed list proves nothing (Task 44). A ":443"
+    entry is kept as "host", like the origin check_destination returns (Sol review of PR #4 fixes)."""
     raw = _entries(env.get("EBMCP_HOSTED_LOG_SERVERS") or "")
     if not all(entry.isascii() for entry in raw):
         return frozenset()
@@ -222,22 +229,23 @@ def log_servers(env) -> frozenset[str]:
         match = _HOST_PORT.fullmatch(host)
         if not match or not 0 < int(match[1]) <= 65535:
             return frozenset()
-    return hosts
+    return frozenset(_default_port(host) for host in hosts)
 
 
 def allowed_hosts(env) -> frozenset[str]:
-    """Read exact host:port entries. A malformed entry invalidates the list."""
+    """Read exact host[:port] entries; "host" and "host:443" are one entry, kept as "host". A
+    malformed entry invalidates the list."""
     # Lower-cased like the destinations it is compared with: an upper-case entry must not refuse
     # everything without a word (Task 38 review N4).
     raw = _entries(env.get("EBMCP_HOSTED_ALLOWED_HOSTS") or "")
     if not all(entry.isascii() for entry in raw):
         return frozenset()                  # a lookalike must not fold into a listed name (re-check)
-    hosts = frozenset(h.lower() for h in raw)
+    hosts = frozenset(h.lower() if ":" in h else h.lower() + ":443" for h in raw)
     for host in hosts:
         match = _HOST_PORT.fullmatch(host)
         if not match or not 0 < int(match[1]) <= 65535:
             return frozenset()
-    return hosts
+    return frozenset(_default_port(host) for host in hosts)
 
 
 def _wait_setting(env, key: str, default: float) -> float:
@@ -489,7 +497,7 @@ def check_destination(raw: str, env) -> str:
         parts = urlsplit(config.clean_server_url(raw))
     except config.ConfigError:
         raise NotAllowed(refusal) from None
-    host_port = parts.netloc.lower()
+    host_port = _default_port(parts.netloc.lower())
     if parts.scheme != "https" or host_port not in allowed_hosts(env):
         raise NotAllowed(refusal)
     return f"https://{host_port}"

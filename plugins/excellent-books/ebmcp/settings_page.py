@@ -317,8 +317,9 @@ def _host(address):
 
 def _identity(server, company, user):
     """The connection a page shows, compared with the saved one: the server root, the company
-    number and the user as typed. An address or company that does not parse is compared as
-    typed. None when all three are empty."""
+    number and the user case-folded like config.connection_id (Books logins are
+    case-insensitive). An address or company that does not parse is compared as typed. None when
+    all three are empty."""
     server, company, user = server.strip(), company.strip(), user.strip()
     if not (server or company or user):
         return None
@@ -330,7 +331,7 @@ def _identity(server, company, user):
         number = str(config._company_number(company))
     except config.ConfigError:
         number = "typed:" + company
-    return (root, number, user)
+    return (root, number, user.casefold())
 
 
 def _connection(values):
@@ -616,17 +617,18 @@ def _current(page_id, authority, language, version):
     return saved, forgotten, None
 
 
-def _take_back(connection, before):
-    """A consent this Save recorded for a connection that did not have one: withdrawn again after
-    the settings write failed, so the page's "nothing was changed" stays true (recheck, NEW MUST
-    2). True when nothing is left to take back."""
+def _take_back(connection, before, previous):
+    """A consent this Save recorded for a connection that did not have one: put back as it was
+    (`previous`, from consent.snapshot) after the settings write failed, so the page's "nothing
+    was changed" stays true (recheck, NEW MUST 2). A missing or stale consent stays missing or
+    stale, never a withdrawal (Kaia's review of PR #4). True when nothing is left to take back."""
     if before == "given":
         return True                 # record() changed nothing
     try:
-        consent.withdraw("gdpr", connection)
+        consent.restore("gdpr", connection, previous)
     except (OSError, config.ConfigError):
         return False
-    return consent.status("gdpr", connection) not in ("given", "stale")
+    return consent.status("gdpr", connection) == before
 
 
 def _save(page_id, authority, language, form, version, digest):
@@ -672,10 +674,11 @@ def _save(page_id, authority, language, form, version, digest):
         return again("user_invalid")
     # The stored values are the root, company and user that passed the last sign-in: compared
     # as stored, never cleaned again (MUST 1). Forget's tombstone has no login: only a full Save
-    # with a typed password and the consent replaces it (recheck, NEW MUST 2).
+    # with a typed password and the consent replaces it (recheck, NEW MUST 2). The user is
+    # case-folded like config.connection_id: "Mari" and "mari" are one Books login.
     same = (not forgotten and saved.get("EBMCP_SERVER_URL") == server
             and saved.get("EBMCP_COMPANY") == str(company)
-            and saved.get("EBMCP_USER") == typed["user"])
+            and saved.get("EBMCP_USER", "").casefold() == typed["user"].casefold())
     # The consent is the box ticked in this post, for this post's connection (fix 1). Saving the
     # saved connection again needs no tick while its consent is on record (fix 2).
     ticked = _one(form, "gdpr") == "yes"
@@ -704,11 +707,12 @@ def _save(page_id, authority, language, form, version, digest):
               config.APPROVE_IN_KEY: saved.get(config.APPROVE_IN_KEY, "browser") if same
               else "browser"}
     password = None
-    before = consent.status("gdpr", connection)
+    before, previous = consent.status("gdpr", connection), None
     try:
         # The consent first: without it nothing is saved, so no login is ever usable with a
         # missing consent (MUST 3). Without a tick the consent on record stands.
         if ticked:
+            previous = consent.snapshot("gdpr", connection)
             consent.record("gdpr", connection, consent.plugin_gdpr_texts()[shown])
     except (OSError, config.ConfigError):
         values = None
@@ -719,12 +723,12 @@ def _save(page_id, authority, language, form, version, digest):
     except config.StaleSettings:
         # Only a hand edit gets past the settings lock; the sign-in was sent by then.
         _note("save_refused_stale", "stale")
-        if not _take_back(connection, before):
+        if not _take_back(connection, before, previous):
             return again("consent_kept", 500)
         return 409, render(page_id, authority, language, message="stale_after_test")
     except (config.ConfigError, OSError):
         _note("save_failed", "save_failed")
-        if not _take_back(connection, before):
+        if not _take_back(connection, before, previous):
             return again("consent_kept", 500)
         return again("save_failed", 500)
     finally:

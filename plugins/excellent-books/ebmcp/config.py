@@ -109,6 +109,13 @@ def _validated_url(raw: str):
         parts = urlsplit(address)
         host = parts.hostname
         parts.port  # Validate port syntax and range as well as the host.
+        # Only an optional port may follow "]": Python 3.11.8's urlsplit read
+        # "[fd00::1]public.example" as the private host fd00::1 (Kaia's review of PR #4). One
+        # bracket pair at most: "[::1]]" passed a lenient urlsplit too (Sol review of the fix).
+        if parts.netloc.count("[") > 1 or parts.netloc.count("]") > 1:
+            raise ValueError("more than one bracket")
+        if "]" in parts.netloc and not re.fullmatch(r"(?::[0-9]*)?", parts.netloc.rsplit("]", 1)[1]):
+            raise ValueError("text after the bracketed host")
     except ValueError:
         raise ConfigError("Server address has an invalid host or port.") from None
     if parts.scheme not in ("http", "https"):

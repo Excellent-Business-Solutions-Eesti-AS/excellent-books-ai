@@ -104,7 +104,7 @@ Answers from your Excellent Books go to the AI service you connected. The connec
 ### Settings in the ZIP
 
 - Writing: `EBMCP_WRITES=yes` in `.env` and a restart switch it on. The approval window opens in your browser by default. Set `EBMCP_APPROVE_IN=chat` to approve changes in the chat. Claude Code can run commands on this computer, so with Claude Code, leave writing off.
-- Personal data: to accept later or review changed wording, run `python -m ebmcp.setup --consent`.
+- Personal data: to accept later or review changed wording, run `python -m ebmcp.setup --consent`. To withdraw, set `EBMCP_GDPR_CONSENT=no` in `.env`; if your AI app's connector settings also set `EBMCP_GDPR_CONSENT` as an environment variable, that value wins, so change it there too.
 - HR and payroll: run `python -m ebmcp.setup --hr-consent` to review the warnings or change your answer, or set `EBMCP_HR_CONSENT=no` in `.env` to turn access off.
 
 ## Help

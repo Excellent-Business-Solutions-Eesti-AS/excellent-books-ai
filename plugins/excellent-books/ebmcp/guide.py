@@ -93,7 +93,7 @@ When writing is on:
 
 Answers can contain personal data, such as names, personal ID codes, e-mail addresses, phone numbers and messages. Your company is the controller of that data and decides whether the provider of your AI service may receive it, under the GDPR and your agreements with that provider. If you do not know whether your company has decided this, ask whoever handles data protection there before you accept.
 
-The connector reads Excellent Books only after you accept the current personal data text on the Connect Excellent Books page. If the wording you accepted changes, the page asks you again. To withdraw, switch personal data off on that page; answers already sent stay with your AI service under your agreements with its provider.
+The connector reads Excellent Books only after you accept the current personal data text on the Connect Excellent Books page. If the wording you accepted changes, the page asks you again. To withdraw, use **Remove saved login** on that page: it removes the saved login from this computer and withdraws the consent; answers already sent stay with your AI service under your agreements with its provider.
 
 ## HR and payroll data
 

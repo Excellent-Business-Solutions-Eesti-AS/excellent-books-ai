@@ -236,3 +236,34 @@ def withdraw(kind: str, connection_id: str) -> bool:
     """True when an acceptance was withdrawn (written); False when there was none to withdraw.
     Raises when the store cannot be read or written."""
     return _update(kind, connection_id, None)
+
+
+def snapshot(kind: str, connection_id: str):
+    """This connection's stored entry as it is (None when there is none), for restore()."""
+    entry = _entries(_read(_store()), kind).get(connection_id)
+    return json.loads(json.dumps(entry)) if entry is not None else None
+
+
+def restore(kind: str, connection_id: str, previous) -> None:
+    """Put back the entry snapshot() returned, after a record() whose purpose failed (the plugin's
+    Save could not write its settings): the record is left as it was, never turned into a
+    withdrawal (Kaia's review of PR #4). Raises when the store cannot be read or written."""
+    path = _store()
+    if previous is None and not path.exists():
+        return
+    with path.with_suffix(".lock").open("a+b") as lock:
+        if os.fstat(lock.fileno()).st_size == 0:
+            lock.write(b"\0")
+            lock.flush()
+        control._take_lock(lock)
+        try:
+            data = _read(path)
+            entries = _entries(data, kind)
+            if previous is None:
+                entries.pop(connection_id, None)
+            else:
+                entries[connection_id] = previous
+            data[kind] = entries
+            _save(path, data)
+        finally:
+            control._release_lock(lock)

@@ -361,17 +361,22 @@ def read_block(session, register: str, entry: dict, span: str = "",
               "names": list(dict.fromkeys(m.get("Comment") or m["Code"] for m in group)),
               "balance": found.get(account)}
              for account, group in accounts.items()]
+    known = [line["balance"] for line in lines if line["balance"] is not None]
     unknown = [line["account"] for line in lines if line["balance"] is None]
     answer.pop("modes")                     # every mode is named in `accounts`
     answer.update(accounts=lines,
-                  total=round(sum(l["balance"] for l in lines if l["balance"] is not None), 2),
+                  total=round(sum(known), 2) if known or not unknown else None,
                   seconds=round((getattr(response, "seconds", 0) or 0) + (got["seconds"] or 0),
                                 2))
-    answer["notes"].append("Every payment mode's account, each once, with its balance in %s at "
-                           "%s; the total covers all of them." % (balances["report"], date))
-    if unknown:
-        answer["notes"].append("Not in the Trial Balance at that date, so no balance is given: "
-                               "%s — nothing posted to it, or no such account." % ", ".join(unknown))
+    answer["notes"].append("Each payment-mode account appears once. Balances are from %s at %s."
+                           % (balances["report"], date))
+    if unknown and known:
+        answer["notes"].append("The total covers %d of %d accounts. It excludes %s because their "
+                               "balances were unavailable."
+                               % (len(known), len(lines), ", ".join(unknown)))
+    elif unknown:
+        answer["notes"].append("No total is available. The Trial Balance gave no balance for %s."
+                               % ", ".join(unknown))
     answer["notes"].extend(entry.get("always_say") or [])
     return answer
 
